@@ -1,0 +1,87 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2026-03-17T00:00:00Z",
+  "tools": [
+    {
+      "domain": "chatgpt.com",
+      "tool_name": "ChatGPT",
+      "category": "Generative AI",
+      "vendor": "OpenAI",
+      "risk_level": "medium",
+      "enterprise_flag": false,
+      "api_domain_flag": false
+    },
+    {
+      "domain": "openai.com",
+      "tool_name": "OpenAI API / Platform",
+      "category": "api",
+      "vendor": "OpenAI",
+      "risk_level": "high",
+      "enterprise_flag": true,
+      "api_domain_flag": true
+    },
+    {
+      "domain": "claude.ai",
+      "tool_name": "Claude",
+      "category": "Generative AI",
+      "vendor": "Anthropic",
+      "risk_level": "medium",
+      "enterprise_flag": false,
+      "api_domain_flag": false
+    },
+    {
+      "domain": "anthropic.com",
+      "tool_name": "Anthropic Console",
+      "category": "api",
+      "vendor": "Anthropic",
+      "risk_level": "high",
+      "enterprise_flag": false,
+      "api_domain_flag": true
+    },
+    {
+      "domain": "github.com",
+      "tool_name": "GitHub Copilot",
+      "category": "Development",
+      "vendor": "Microsoft",
+      "risk_level": "low",
+      "enterprise_flag": true,
+      "api_domain_flag": false
+    },
+    {
+      "domain": "gemini.google.com",
+      "tool_name": "Google Gemini",
+      "category": "Generative AI",
+      "vendor": "Google",
+      "risk_level": "medium",
+      "enterprise_flag": false,
+      "api_domain_flag": false
+    },
+    {
+      "domain": "vertexai.googleapis.com",
+      "tool_name": "Google Vertex AI",
+      "category": "api",
+      "vendor": "Google",
+      "risk_level": "high",
+      "enterprise_flag": true,
+      "api_domain_flag": true
+    },
+    {
+      "domain": "midjourney.com",
+      "tool_name": "Midjourney",
+      "category": "Design/Media",
+      "vendor": "Midjourney",
+      "risk_level": "medium",
+      "enterprise_flag": false,
+      "api_domain_flag": false
+    },
+    {
+      "domain": "huggingface.co",
+      "tool_name": "Hugging Face",
+      "category": "Development",
+      "vendor": "Hugging Face",
+      "risk_level": "medium",
+      "enterprise_flag": false,
+      "api_domain_flag": false
+    }
+  ]
+}
