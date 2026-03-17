@@ -1,0 +1,43 @@
+# Node
+node_modules/
+npm-debug.log*
+.pnp
+.pnp.js
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+.env
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.pem
+
+# Vite build output
+dist/
+.vite/
+
+# Vercel
+.vercel/
+
+# Firebase service account (sensitive)
+*firebase-adminsdk*.json
+
+# Agent config (may contain secrets)
+devise-eye/config.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
