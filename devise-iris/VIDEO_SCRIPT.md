@@ -114,4 +114,4 @@
 > If your company is serious about AI governance, we'd love to show you a live demo."
 
 > *[Fade out with product name / tagline on screen]*
-> **"Devise — See every AI. Control every risk."**
+> **"Devise — The Firewall for the AI Era."**
