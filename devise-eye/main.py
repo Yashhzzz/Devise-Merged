@@ -34,14 +34,10 @@ class DeviseAgent:
         from registry import create_registry
         from deduplicator import create_deduplicator
         from event_builder import create_event_builder
-        from reporter import create_reporter
         from event_queue import create_event_queue
-        from heartbeat import create_heartbeat_sender
         from frequency_tracker import FrequencyTracker
         from liveness_monitor import LivenessMonitor
         from tamper_guard import TamperGuard
-        from firewall_monitor import create_firewall_monitor
-        from sensitivity_monitor import create_sensitivity_monitor
 
         # Load configuration
         self._config = get_config(config_path)
@@ -56,7 +52,7 @@ class DeviseAgent:
         _api_key = self._config.api_key or "dev-api-key"
         _device_id = self._config.device_id or self._identity_resolver.device_id
         _org_id = self._config.org_id
-        
+
         if not _org_id:
             logger.warning("No org_id found in config, using fallback from identity")
             _org_id = self._identity_resolver.identity.get("org_id", "local-org")
@@ -84,47 +80,19 @@ class DeviseAgent:
 
         # Initialize detector with process resolver
         self._detector = create_detector(
-            self._config.poll_interval, process_resolver=self._process_resolver,
-            dedup_window=self._config.deduplication_window
+            self._config.poll_interval,
+            process_resolver=self._process_resolver,
+            dedup_window=self._config.deduplication_window,
         )
         self._registry = create_registry(update_url=self._config.registry_update_url)
         self._registry.preload_dns()
-        
+
         self._deduplicator = create_deduplicator(self._config.deduplication_window)
         self._event_builder = create_event_builder(
-            self._identity_resolver.identity,
-            _device_id,
-            _org_id
+            self._identity_resolver.identity, _device_id, _org_id
         )
 
-        # Initialize reporter with queue for FR-17 (retry logic)
-        _sa_path = self._config.service_account_path or r"C:\ProgramData\Devise\service_account.json"
-        _project_id = self._config.firebase_project_id
-        
-        if not _project_id:
-            logger.error("CRITICAL: No firebase_project_id found in config!")
-            # Last resort fallback to try and find it from service account if path exists
-            if os.path.exists(_sa_path):
-                try:
-                    with open(_sa_path, "r") as f:
-                        _project_id = json.load(f).get("project_id")
-                except:
-                    pass
-        
-        self._reporter = create_reporter(
-            project_id=_project_id or "dev-project",
-            service_account_path=_sa_path,
-            queue=self._queue,
-        )
-
-        # Initialize heartbeat for FR-20
-        self._heartbeat = create_heartbeat_sender(
-            device_id=_device_id,
-            org_id=_org_id,
-            agent_version=self._config.agent_version,
-            reporter=self._reporter,
-            queue=self._queue,
-        )
+        # Initialize reporter with queue for FR-17 (retry logic) - Removed (local only)
 
         # Phase 3: Advanced modules
         self._frequency_tracker = FrequencyTracker()
@@ -133,14 +101,6 @@ class DeviseAgent:
             version=self._config.agent_version,
         )
         self._tamper_guard = TamperGuard()
-        
-        # Initialize Phase 2 Advanced Features
-        self._firewall_monitor = create_firewall_monitor(
-            project_id=_project_id or "dev-project",
-            org_id=_org_id,
-            service_account_path=_sa_path
-        )
-        self._sensitivity_monitor = create_sensitivity_monitor()
 
         # Initialize config poller for FR-30 (remote config)
         self._config_poller: Optional[ConfigPoller] = None
@@ -186,77 +146,30 @@ class DeviseAgent:
                 logger.warning(f"Remote config poll failed: {e}")
 
     async def _flush_queue(self) -> None:
-        """Flush queued events to backend."""
-        if self._queue.get_queue_depth() > 0:
-            logger.info(f"Flushing {self._queue.get_queue_depth()} queued events")
-            try:
-                await self._reporter.flush_queue()
-            except Exception as e:
-                logger.warning(f"Queue flush failed: {e}")
+        """Flush queued events to backend (removed - local only)."""
+        pass
 
     async def _send_tamper_alert(self, result) -> None:
-        """Send tamper detection alert to backend (fire-and-forget).
+        """Log tamper detection alert locally (fire-and-forget).
 
         Args:
             result: TamperResult from TamperGuard.check_integrity()
         """
-        import httpx
-
-        url = f"{self._config.backend_url}/api/tamper-alert"
-        payload = {
-            "device_id": self._identity_resolver.device_id,
-            "actual_hash": result.actual_hash,
-            "expected_hash": result.expected_hash,
-            "message": result.message,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(
-                    url,
-                    json=payload,
-                    headers={
-                        "Authorization": f"Bearer {self._config.api_key or 'dev-api-key'}",
-                        "Content-Type": "application/json",
-                    },
-                )
-                logger.warning(f"Tamper alert sent (status={response.status_code})")
-        except Exception as e:
-            logger.error(f"Failed to send tamper alert: {e}")
+        logger.warning(
+            f"Tamper alert: {result.message} "
+            f"(expected={result.expected_hash}, actual={result.actual_hash})"
+        )
 
     async def _send_gap_event(self, gap) -> None:
-        """Send agent gap event to backend.
+        """Log agent gap event locally.
 
         Args:
             gap: GapResult from LivenessMonitor.check_gap()
         """
-        import httpx
-
-        url = f"{self._config.backend_url}/api/event"
-        payload = {
-            "type": "agent_gap",
-            "device_id": self._identity_resolver.device_id,
-            "gap_seconds": gap.gap_seconds,
-            "last_seen": gap.last_seen.isoformat(),
-            "suspicious": gap.suspicious,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(
-                    url,
-                    json=payload,
-                    headers={
-                        "Authorization": f"Bearer {self._config.api_key or 'dev-api-key'}",
-                        "Content-Type": "application/json",
-                    },
-                )
-                logger.info(
-                    f"Agent gap event sent: {gap.gap_seconds:.1f}s gap "
-                    f"(suspicious={gap.suspicious}, status={response.status_code})"
-                )
-        except Exception as e:
-            logger.warning(f"Failed to send gap event: {e}")
+        logger.info(
+            f"Agent gap detected: {gap.gap_seconds:.1f}s gap "
+            f"(suspicious={gap.suspicious})"
+        )
 
     async def _process_connection(self, connection: dict) -> None:
         """Process a single connection.
@@ -272,7 +185,7 @@ class DeviseAgent:
 
         # Phase 1 Match: Try direct IP match FIRST for CDN tools like ChatGPT
         entry = self._registry.find_match_by_ip(remote_ip)
-        
+
         # Phase 2 Match: Fall back to reverse DNS + hostname match
         if not entry:
             hostname = self._dns_resolver.reverse_lookup(remote_ip)
@@ -309,10 +222,10 @@ class DeviseAgent:
                 pass
 
         # Check local firewall policy
-        is_blocked = self._firewall_monitor.is_blocked(entry.domain)
-        
+        is_blocked = False  # Firewall monitor removed
+
         # Get context sensitivity score
-        sensitivity_score = self._sensitivity_monitor.get_current_score()
+        sensitivity_score = 0  # Sensitivity monitor removed
 
         # Track connection frequency (FR-10)
         freq_result = self._frequency_tracker.record(entry.domain)
@@ -336,10 +249,10 @@ class DeviseAgent:
         )
 
         # Update heartbeat with last detection time (FR-20)
-        self._heartbeat.update_last_detection(datetime.utcnow())
+        # Heartbeat monitoring removed
 
         # Report event (with retry logic - FR-17)
-        success = await self._reporter.report_event(event)
+        success = True  # Reporting disabled - local only
 
         if success:
             logger.info(f"Reported: {entry.tool_name} from {process_name}")
@@ -367,7 +280,7 @@ class DeviseAgent:
                 heartbeat_counter += 1
                 if heartbeat_counter >= 10:  # Every ~5 minutes (10 * 30s)
                     try:
-                        await self._heartbeat.send_heartbeat()
+                        pass  # Heartbeat removed
                     except Exception as e:
                         logger.warning(f"Heartbeat failed: {e}")
                     heartbeat_counter = 0
@@ -412,10 +325,10 @@ class DeviseAgent:
         poller = self._config_poller
         if poller:
             await poller.start()
-            
+
         # Start Phase 2 background monitors
-        self._firewall_monitor.start()
-        self._sensitivity_monitor.start()
+        # Firewall monitor removed
+        # Sensitivity monitor removed
 
         # Phase 3: Check for liveness gap (FR-29) — detect unexpected kill/suspend
         gap = self._liveness_monitor.check_gap()
@@ -445,7 +358,7 @@ class DeviseAgent:
 
         # Send initial heartbeat
         try:
-            await self._heartbeat.send_heartbeat()
+            pass  # Heartbeat removed
         except Exception as e:
             logger.warning(f"Initial heartbeat failed: {e}")
 
@@ -456,16 +369,16 @@ class DeviseAgent:
         finally:
             # Final flush on shutdown
             await self._flush_queue()
-            await self._reporter.close()
+            pass  # Reporter removed
 
             # Stop config poller
             poller = self._config_poller
             if poller:
                 await poller.stop()
-                
+
             # Stop Phase 2 background monitors
-            self._firewall_monitor.stop()
-            self._sensitivity_monitor.stop()
+            # Firewall monitor removed
+            # Sensitivity monitor removed
 
             logger.info("Devise Desktop Agent stopped")
 

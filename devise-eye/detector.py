@@ -12,21 +12,12 @@ logger = logging.getLogger(__name__)
 class NetworkDetector:
     """Detects network connections to AI tool domains."""
 
-    # Filter to only ESTABLISHED connections (FR-02)
-    FILTERED_STATES = {
-        "TIME_WAIT",
-        "CLOSE_WAIT",
-        "LISTEN",
-        "SYN_SENT",
-        "SYN_RECV",
-        "FIN_WAIT1",
-        "FIN_WAIT2",
-        "CLOSING",
-        "LAST_ACK",
-        "CLOSED",
-    }
+    # Only ESTABLISHED connections are relevant (FR-02)
+    VALID_STATES = {"ESTABLISHED"}
 
-    def __init__(self, poll_interval: int = 30, process_resolver=None, dedup_window: int = 300):
+    def __init__(
+        self, poll_interval: int = 30, process_resolver=None, dedup_window: int = 300
+    ):
         """Initialize network detector.
 
         Args:
@@ -64,7 +55,7 @@ class NetworkDetector:
         try:
             for conn in psutil.net_connections(kind="inet"):
                 # Filter by ESTABLISHED state only (FR-02)
-                if conn.status not in self.FILTERED_STATES:
+                if conn.status in self.VALID_STATES:
                     if conn.raddr:
                         connection_info = {
                             "remote_addr": conn.raddr.ip,

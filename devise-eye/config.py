@@ -23,7 +23,8 @@ class Config:
         "Linux": "/etc/devise/config.json",
     }
 
-    DEFAULT_BACKEND_URL = "https://api.devise.example.com"
+    # Default URLs - can be overridden by environment variables or config file
+    DEFAULT_API_URL = os.environ.get("DEVISE_API_URL", "http://localhost:3000/api")
     DEFAULT_POLL_INTERVAL = 30  # seconds
     DEFAULT_CONFIG_POLL_INTERVAL = 1800  # 30 minutes
     DEFAULT_HEARTBEAT_INTERVAL = 300  # 5 minutes
@@ -41,7 +42,7 @@ class Config:
 
     def _get_default_config_path(self) -> str:
         """Get platform-specific default config path.
-        
+
         Checks for a local config.json in the script directory first,
         which allows per-user configuration without admin privileges.
         """
@@ -101,39 +102,9 @@ class Config:
         return self._get("api_key")
 
     @property
-    def backend_api_url(self) -> str:
-        """Get the backend API webhook URL."""
-        return self._get("backend_api_url", "http://localhost:3000/api/log-event")
-
-    @property
-    def firebase_project_id(self) -> Optional[str]:
-        """Get Firebase project ID."""
-        return self._get("firebase_project_id")
-
-    @property
-    def firebase_api_key(self) -> Optional[str]:
-        """Get Firebase web API key."""
-        return self._get("firebase_api_key")
-
-    @property
-    def service_account_path(self) -> Optional[str]:
-        """Get path to the service account JSON file."""
-        return self._get("service_account_path")
-
-    @property
     def org_id(self) -> Optional[str]:
         """Get organization ID."""
         return self._get("org_id")
-
-    @property
-    def backend_url(self) -> str:
-        """Get backend URL."""
-        return self._get("backend_url", self.DEFAULT_BACKEND_URL)
-
-    @property
-    def event_endpoint(self) -> str:
-        """Get full event API endpoint URL."""
-        return f"{self.backend_url}/api/event"
 
     @property
     def registry_update_url(self) -> Optional[str]:

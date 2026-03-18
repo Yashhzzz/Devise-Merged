@@ -1,7 +1,11 @@
 /**
- * Devise Dashboard — API service layer (Local Backend Edition)
- * Backend: http://localhost:3001
- * No Firebase dependency for data — all served from local backend with demo data.
+ * Devise Dashboard — API service layer
+ * 
+ * Backend URL is configured via VITE_API_URL environment variable.
+ * Defaults to http://localhost:3002/api for local development.
+ * 
+ * Set VITE_API_URL in your .env file for custom backends:
+ *   VITE_API_URL=http://your-api-domain.com/api
  */
 
 export interface DetectionEvent {
@@ -219,10 +223,8 @@ export interface EventsResponse {
   events: DetectionEvent[];
 }
 
-// ---------------------------------------------------------------------------
-// Core fetch helper
-// ---------------------------------------------------------------------------
-const BASE_URL = "http://localhost:3001/api";
+// Backend URL - configured via environment variable
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3002/api";
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
