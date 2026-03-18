@@ -13,45 +13,76 @@ import {
   updateProfile,
   type User 
 } from "firebase/auth";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { updateLastActive } from "@/services/api";
 import { auth, db } from "@/lib/firebase";
 
 interface AuthContextType {
-  user: User | null;
-  session: User | null; // Alias for compatibility
+  user: User | MockUser | null;
+  session: User | MockUser | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  isDemoMode: boolean;
+}
+
+// Mock user for demo mode
+interface MockUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  emailVerified: boolean;
+  isMock: true;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Demo mode flag - enable to bypass Firebase
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE !== "false";
 
 interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Demo user for when Firebase is not available
+const DEMO_USER: MockUser = {
+  uid: "demo-user-123",
+  email: "demo@company.com",
+  displayName: "Demo User",
+  photoURL: null,
+  emailVerified: true,
+  isMock: true,
+};
+
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | MockUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (DEMO_MODE) {
+      // Demo mode - auto-login with mock user
+      console.log("[Demo Mode] Using mock authentication");
+      setUser(DEMO_USER);
+      setLoading(false);
+      return;
+    }
+
+    // Real Firebase auth
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        // Update last_active on login
         await updateLastActive();
-        
-        // Initial theme sync from Firestore
-        const profileRef = doc(db, "profiles", firebaseUser.uid);
-        const profileSnap = await getDoc(profileRef);
-        if (profileSnap.exists()) {
-          const data = profileSnap.data();
-          if (data.dark_mode !== undefined) {
-            const isDark = data.dark_mode;
-            document.documentElement.classList.toggle("dark", isDark);
-            localStorage.setItem("theme", isDark ? "dark" : "light");
+        if (db) {
+          const profileRef = doc(db, "profiles", firebaseUser.uid);
+          const profileSnap = await getDoc(profileRef);
+          if (profileSnap.exists()) {
+            const data = profileSnap.data();
+            if (data.dark_mode !== undefined) {
+              document.documentElement.classList.toggle("dark", data.dark_mode);
+              localStorage.setItem("theme", data.dark_mode ? "dark" : "light");
+            }
           }
         }
       }
@@ -62,6 +93,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    if (DEMO_MODE) {
+      setUser(DEMO_USER);
+      return { error: null };
+    }
     try {
       await signInWithEmailAndPassword(auth, email, password);
       return { error: null };
@@ -71,6 +106,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const signUp = async (email: string, password: string, fullName?: string) => {
+    if (DEMO_MODE) {
+      setUser({ ...DEMO_USER, email, displayName: fullName || email.split('@')[0] });
+      return { error: null };
+    }
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
@@ -79,64 +118,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await updateProfile(user, { displayName: fullName });
       }
 
-      // Create initial Firestore profile and organization for the new user
-      if (user) {
-        const orgId = `org_${user.uid.slice(0, 8)}`;
-        
-        // 1. Create Organization
-        await setDoc(doc(db, "organizations", orgId), {
-          id: orgId,
-          name: `${fullName || 'My'}'s Team`,
-          slug: orgId,
-          created_at: new Date().toISOString()
-        });
-
-        // 2. Create User Profile
-        await setDoc(doc(db, "profiles", user.uid), {
-          id: user.uid,
-          email: user.email,
-          full_name: fullName || "",
-          org_id: orgId,
-          role: "admin",
-          department: "General",
-          created_at: new Date().toISOString()
-        });
-
-        // 3. Create Default Org Settings
-        await setDoc(doc(db, "org_settings", orgId), {
-          id: orgId,
-          org_id: orgId,
-          monthly_budget: 1000,
-          alert_threshold: 80,
-          auto_block: false,
-          allowed_categories: ["AI Assistant", "Development"],
-          blocked_domains: [],
-          notification_email: true,
-          notification_slack: false
-        });
-      }
-
       return { error: null };
     } catch (error) {
-      console.error("Signup error:", error);
       return { error: error as Error };
     }
   };
 
   const signOut = async () => {
-    try {
-      if (user) {
-        await updateLastActive();
-      }
-    } catch (e) {
-      console.error("Failed to update last_active on sign out", e);
+    if (DEMO_MODE) {
+      setUser(null);
+      return;
     }
-    await firebaseSignOut(auth);
+    try {
+      await firebaseSignOut(auth);
+    } catch (error) {
+      console.error("Sign out error:", error);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, session: user, loading, signIn, signUp, signOut }}>
-      {!loading && children}
+    <AuthContext.Provider value={{ 
+      user, 
+      session: user,
+      loading, 
+      signIn, 
+      signUp, 
+      signOut,
+      isDemoMode: DEMO_MODE 
+    }}>
+      {children}
     </AuthContext.Provider>
   );
 }
