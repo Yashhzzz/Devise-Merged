@@ -224,15 +224,39 @@ export interface EventsResponse {
 }
 
 // Backend URL - configured via environment variable
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3002/api";
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-// Demo mode - returns mock data when backend is unavailable
+// Demo mode flag - set to false to use real backend
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE !== "false";
 
+// Store org_id and user_id for API requests
+let _orgId: string | null = null;
+let _userId: string | null = null;
+
+export function setOrgId(orgId: string | null) { _orgId = orgId; }
+export function setUserId(userId: string | null) { _userId = userId; }
+
+// Get current auth info
+export function getOrgId() { return _orgId; }
+export function getUserId() { return _userId; }
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  // Build headers
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(_orgId ? { "X-Org-Id": _orgId } : {}),
+    ...(_userId ? { "X-User-Id": _userId } : {}),
+  };
+  
+  // Add auth token if present
+  const token = localStorage.getItem("auth_token");
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  
   try {
     const res = await fetch(`${BASE_URL}${path}`, {
-      headers: { "Content-Type": "application/json" },
+      headers,
       ...options,
     });
     if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);

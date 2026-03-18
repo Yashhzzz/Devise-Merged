@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+python-jose[cryptography]
+python-dotenv
+pydantic
+httpx>=0.25.0
+google-auth>=2.0.0
+google-auth-httplib2
